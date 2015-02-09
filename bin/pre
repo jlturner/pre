@@ -1,0 +1,52 @@
+#!/usr/bin/env ruby
+
+def process_path file_path, source_base_path, output_base_path
+  abs_path = File.expand_path(file_path, source_base_path)
+  abs_output_path = File.expand_path(file_path, output_base_path)
+  if File.directory?(abs_path) && !File.symlink?(abs_path)
+    Dir.mkdir abs_output_path
+    Dir.foreach(abs_path) do |next_file|
+      if(next_file != ".." && next_file != ".")
+        process_path next_file, File.expand_path(file_path, source_base_path), File.expand_path(file_path, output_base_path)
+      end
+    end
+  elsif File.symlink?(abs_path)
+    # TODO: handle symlinks
+  else
+    new_file_data = ""
+    begin
+      file_data = File.readlines abs_path
+      in_pre = false
+      file_data.select! do |line|
+        if in_pre
+          if !(line =~ /\/\*PRE-END\*\//).nil?
+            in_pre = false
+          end
+          false
+        elsif !(line =~ /\/\*PRE-START\*\//).nil?
+          in_pre = true
+          false
+        elsif !(line =~ /\/\*PRE\*\//).nil?
+          false
+        else
+          true
+        end
+      end
+      new_file_data = file_data.join
+    rescue
+      new_file_data = File.read abs_path
+    end
+    File.open(abs_output_path, 'w') do |file|
+      file << new_file_data
+    end
+  end
+end
+
+input_source_base_path = File.expand_path(ARGV[0], Dir.pwd)
+input_output_base_path = File.expand_path(ARGV[1], Dir.pwd)
+
+Dir.foreach(input_source_base_path) do |file_name|
+  if(file_name != '..' && file_name != '.')
+    process_path file_name, input_source_base_path, input_output_base_path
+  end
+end
